@@ -12,6 +12,7 @@
 #include <string.h>
 #include <errno.h>
 #include <math.h>
+#include <pthread.h>
 
 #include "clcg4.c"
 
@@ -39,7 +40,7 @@ int GRID_SIZE = 16384;
 /***************************************************************************/
 
 // You define these
-
+void* game_of_life(void *arg);
 
 /***************************************************************************/
 /* Function: Main **********************************************************/
@@ -59,14 +60,14 @@ int main(int argc, char *argv[])
         start_time = MPI_Wtime();
     }
 
-    NUM_THREADS = argv[2];
-    THRESHOLD = argv[3];
-    num_ranks = mpi_commsize;
-    ROWS_PER_RANK = GRID_SIZE/num_ranks;
-    num_ghost_rows = num_ranks - 1;
+    NUM_THREADS = atoi(argv[1]);
+    THRESHOLD = atoi(argv[2]);
+    NUM_RANKS = mpi_commsize;
+    ROWS_PER_RANK = GRID_SIZE/NUM_RANKS;
+    num_ghost_rows = NUM_RANKS - 1;
 
-    int *rng_streams = (int*)malloc(sizeof(int)*GRID_SIZE);
-    int **universe = (int**)malloc(sizeof(rng_streams)*GRID_SIZE);
+    int *row = (int*)malloc(sizeof(int)*GRID_SIZE);
+    int **universe = (int**)malloc(sizeof(row)*GRID_SIZE);
     
 // Init 16,384 RNG streams - each rank has an independent stream
     InitDefault();
@@ -74,13 +75,36 @@ int main(int argc, char *argv[])
 // Note, used the mpi_myrank to select which RNG stream to use.
 // You must replace mpi_myrank with the right row being used.
 // This just show you how to call the RNG.    
-    printf("Rank %d of %d has been started and a first Random Value of %lf\n", 
-       mpi_myrank, mpi_commsize, GenVal(mpi_myrank));
-    
+    // printf("Rank %d of %d has been started and a first Random Value of %lf\n", 
+    //    mpi_myrank, mpi_commsize, GenVal(mpi_myrank));
     MPI_Barrier( MPI_COMM_WORLD );
     
 // Insert your code
-    
+    if (NUM_THREADS) {
+        // Create thread array
+        pthread_t tid[GRID_SIZE];
+
+        // Create each thread and call thread function game_of_life
+        for (int i = 0; i < NUM_THREADS; ++i) {
+            void *info;
+            int rc = pthread_create(&tid[i],NULL,game_of_life,info);
+
+            if (rc != 0) {
+                fprintf(stderr,"Main thread could not create child thread (%d)\n",rc);
+                return EXIT_FAILURE;
+            }
+        }
+
+        // Join child threads with main thread
+        for (int i = 0; i < NUM_THREADS; ++i) {
+            void **thread_info;
+            pthread_join(tid[i],thread_info);
+            free(thread_info);
+        }
+
+    } else {
+        // Corner case without pthreads
+    }
 
 // END -Perform a barrier and then leave MPI
     MPI_Barrier( MPI_COMM_WORLD );
@@ -91,3 +115,6 @@ int main(int argc, char *argv[])
 /***************************************************************************/
 /* Other Functions - You write as part of the assignment********************/
 /***************************************************************************/
+void* game_of_life(void *arg) {
+
+}
