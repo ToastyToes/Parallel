@@ -29,7 +29,9 @@
 
 // You define these
 double start_time,finish_time;
-
+int ROWS_PER_RANK;
+int num_ranks, num_rows, num_ghost_rows;
+int GRID_SIZE = 16384;
 
 /***************************************************************************/
 /* Function Decs ***********************************************************/
@@ -51,9 +53,17 @@ int main(int argc, char *argv[])
     MPI_Init( &argc, &argv);
     MPI_Comm_size( MPI_COMM_WORLD, &mpi_commsize);
     MPI_Comm_rank( MPI_COMM_WORLD, &mpi_myrank);
+
     if (mpi_myrank == 0) {
         start_time = MPI_Wtime();
     }
+
+    num_ranks = mpi_commsize;
+    ROWS_PER_RANK = GRID_SIZE/num_ranks;
+    num_ghost_rows = num_ranks - 1;
+
+    int *rng_streams = (int*)malloc(sizeof(int)*GRID_SIZE);
+    int **universe = (int**)malloc(sizeof(rng_streams)*GRID_SIZE);
     
 // Init 16,384 RNG streams - each rank has an independent stream
     InitDefault();
