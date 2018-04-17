@@ -30,7 +30,8 @@
 // You define these
 double start_time,finish_time;
 int ROWS_PER_RANK;
-int num_ranks, num_rows, num_ghost_rows;
+int NUM_RANKS, num_rows, num_ghost_rows;
+int NUM_THREADS, THRESHOLD;
 int GRID_SIZE = 16384;
 
 /***************************************************************************/
@@ -58,6 +59,8 @@ int main(int argc, char *argv[])
         start_time = MPI_Wtime();
     }
 
+    NUM_THREADS = argv[2];
+    THRESHOLD = argv[3];
     num_ranks = mpi_commsize;
     ROWS_PER_RANK = GRID_SIZE/num_ranks;
     num_ghost_rows = num_ranks - 1;
@@ -72,7 +75,7 @@ int main(int argc, char *argv[])
 // You must replace mpi_myrank with the right row being used.
 // This just show you how to call the RNG.    
     printf("Rank %d of %d has been started and a first Random Value of %lf\n", 
-	   mpi_myrank, mpi_commsize, GenVal(mpi_myrank));
+       mpi_myrank, mpi_commsize, GenVal(mpi_myrank));
     
     MPI_Barrier( MPI_COMM_WORLD );
     
