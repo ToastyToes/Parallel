@@ -1,21 +1,19 @@
 /***************************************************************************/
 /* Template for Asssignment 4/5 ********************************************/
-/* Team Names Here              **(*****************************************/
+/* Jon Harris, Chris George, Ben Gruber  ********************************************/
 /***************************************************************************/
 
 /***************************************************************************/
 /* Includes ****************************************************************/
 /***************************************************************************/
+#include <mpi.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+#include <math.h>
 
-#include<stdio.h>
-#include<stdlib.h>
-#include<string.h>
-#include<errno.h>
-#include<math.h>
-
-#include<clcg4.h>
-
-#include<mpi.h>
+#include "clcg4.c"
 
 
 /***************************************************************************/
@@ -30,6 +28,7 @@
 /***************************************************************************/
 
 // You define these
+double start_time,finish_time;
 
 
 /***************************************************************************/
@@ -52,6 +51,9 @@ int main(int argc, char *argv[])
     MPI_Init( &argc, &argv);
     MPI_Comm_size( MPI_COMM_WORLD, &mpi_commsize);
     MPI_Comm_rank( MPI_COMM_WORLD, &mpi_myrank);
+    if (mpi_myrank == 0) {
+        start_time = MPI_Wtime();
+    }
     
 // Init 16,384 RNG streams - each rank has an independent stream
     InitDefault();
