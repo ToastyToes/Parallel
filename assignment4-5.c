@@ -29,11 +29,19 @@
 /***************************************************************************/
 
 // You define these
-double start_time,finish_time;
-int ROWS_PER_RANK;
+int mpi_myrank;
+int mpi_commsize;
+int ROWS_PER_RANK, ROWS_PER_THREAD;
 int NUM_RANKS, num_rows, num_ghost_rows;
 int NUM_THREADS, THRESHOLD;
 int GRID_SIZE = 16384;
+
+struct thread_args{
+    short (*universe)[];
+    short start_row;
+    short *top_ghost_row;
+    short *bot_ghost_row;
+};
 
 /***************************************************************************/
 /* Function Decs ***********************************************************/
@@ -41,6 +49,7 @@ int GRID_SIZE = 16384;
 
 // You define these
 void* game_of_life(void *arg);
+void tick();
 
 /***************************************************************************/
 /* Function: Main **********************************************************/
@@ -49,8 +58,8 @@ void* game_of_life(void *arg);
 int main(int argc, char *argv[])
 {
 //    int i = 0;
-    int mpi_myrank;
-    int mpi_commsize;
+    double start_time, finish_time;
+    
 // Example MPI startup and using CLCG4 RNG
     MPI_Init( &argc, &argv);
     MPI_Comm_size( MPI_COMM_WORLD, &mpi_commsize);
@@ -64,11 +73,12 @@ int main(int argc, char *argv[])
     THRESHOLD = atoi(argv[2]);
     NUM_RANKS = mpi_commsize;
     ROWS_PER_RANK = GRID_SIZE/NUM_RANKS;
+    ROWS_PER_THREAD = ROWS_PER_RANK/NUM_THREADS;
     num_ghost_rows = NUM_RANKS - 1;
-
-    int *row = (int*)malloc(sizeof(int)*GRID_SIZE);
-    int **universe = (int**)malloc(sizeof(row)*GRID_SIZE);
     
+    // This rank's rows of the grid
+    short (*universe)[GRID_SIZE] = malloc(ROWS_PER_RANK*GRID_SIZE*sizeof(short)); 
+
 // Init 16,384 RNG streams - each rank has an independent stream
     InitDefault();
     
@@ -81,13 +91,29 @@ int main(int argc, char *argv[])
     
 // Insert your code
     if (NUM_THREADS) {
+
+        //Initialize grid to random states
+        for (int i = 0; i < ROWS_PER_RANK; ++i){
+            for (int j = 0; j < GRID_SIZE; ++j){
+                universe[i][j] = (GenVal(mpi_myrank) > .5) ? 1 : 0;
+            }
+        }
         // Create thread array
-        pthread_t tid[GRID_SIZE];
+        pthread_t tid[NUM_THREADS];
 
         // Create each thread and call thread function game_of_life
-        for (int i = 0; i < NUM_THREADS; ++i) {
-            void *info;
-            int rc = pthread_create(&tid[i],NULL,game_of_life,info);
+        for (int i = 1; i < NUM_THREADS; ++i) {
+            struct thread_args *info = (struct thread_args*) calloc(1, sizeof(struct thread_args));//possible memory issue from multiple of same variable?
+            info->universe = universe;
+            info->start_row = i*ROWS_PER_THREAD;
+            info->top_ghost_row = NULL;
+            if (i == NUM_THREADS-1 && mpi_myrank != mpi_commsize-1){
+                // TODO: Figure out ghost rows
+            }
+            else 
+                info->bot_ghost_row = NULL;
+
+            int rc = pthread_create(&tid[i],NULL,game_of_life,(void*)info);
 
             if (rc != 0) {
                 fprintf(stderr,"Main thread could not create child thread (%d)\n",rc);
@@ -95,8 +121,20 @@ int main(int argc, char *argv[])
             }
         }
 
+        struct thread_args *info = (struct thread_args*) calloc(1, sizeof(struct thread_args));
+        info->universe = universe;
+        info->start_row = 0;
+        if (mpi_myrank != 0){
+            // TODO: Figure out ghost rows
+        }
+        else
+            info->top_ghost_row = NULL;
+        info->bot_ghost_row = NULL;
+        game_of_life((void*)info);
+
+
         // Join child threads with main thread
-        for (int i = 0; i < NUM_THREADS; ++i) {
+        for (int i = 1; i < NUM_THREADS; ++i) {
             void **thread_info;
             pthread_join(tid[i],thread_info);
             free(thread_info);
@@ -116,5 +154,9 @@ int main(int argc, char *argv[])
 /* Other Functions - You write as part of the assignment********************/
 /***************************************************************************/
 void* game_of_life(void *arg) {
+    struct thread_args args = *(struct thread_args*)arg;
+}
+
+void tick(){
 
 }
