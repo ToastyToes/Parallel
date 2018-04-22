@@ -64,6 +64,8 @@ int main(int argc, char *argv[])
     MPI_Init( &argc, &argv);
     MPI_Comm_size( MPI_COMM_WORLD, &mpi_commsize);
     MPI_Comm_rank( MPI_COMM_WORLD, &mpi_myrank);
+    MPI_Request request, request2;
+    MPI_Status status, status2;
 
     if (mpi_myrank == 0) {
         start_time = MPI_Wtime();
@@ -109,10 +111,21 @@ int main(int argc, char *argv[])
             info->top_ghost_row = NULL;
             if (i == NUM_THREADS-1 && mpi_myrank != mpi_commsize-1){
                 // TODO: Figure out ghost rows
+                MPI_Isend(universe, GRID_SIZE, MPI_SHORT,mpi_myrank-1, mpi_myrank-1, MPI_COMM_WORLD, &request);
+                MPI_Irecv(top_ghost_row, GRID_SIZE, MPI_SHORT,mpi_myrank, mpi_myrank+1, MPI_COMM_WORLD, &request2);
+                MPI_Wait(&request2, status2);
             }
             else 
                 info->bot_ghost_row = NULL;
+            if(i == 1 && mpi_myrank != 0){
+                MPI_Irecv(bot_ghost_row, GRID_SIZE, MPI_SHORT,mpi_myrank, mpi_myrank-1, MPI_COMM_WORLD, &request);
+                MPI_Isend(universe, GRID_SIZE, MPI_SHORT,mpi_myrank+1, mpi_myrank+1, MPI_COMM_WORLD, &request2);
+                MPI_Wait(&request, status);
 
+            }
+            else{
+                info->top_ghost_row = NULL
+            }
             int rc = pthread_create(&tid[i],NULL,game_of_life,(void*)info);
 
             if (rc != 0) {
@@ -126,6 +139,9 @@ int main(int argc, char *argv[])
         info->start_row = 0;
         if (mpi_myrank != 0){
             // TODO: Figure out ghost rows
+            //What to do here and why
+            MPI_Irecv(&top_ghost_row, ROWS_PER_THREAD, MPI_INT,mpi_myrank-1, mpi_myrank, MPI_COMM_WORLD, &request2);
+            MPI_Wait(&request2, status2);
         }
         else
             info->top_ghost_row = NULL;
@@ -155,6 +171,7 @@ int main(int argc, char *argv[])
 /***************************************************************************/
 void* game_of_life(void *arg) {
     struct thread_args args = *(struct thread_args*)arg;
+    
 }
 
 void tick(){
