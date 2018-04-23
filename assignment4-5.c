@@ -38,9 +38,9 @@ int GRID_SIZE = 16384;
 
 struct thread_args{
     short (*universe)[];
-    short start_row;
-    short *top_ghost_row;
-    short *bot_ghost_row;
+    const short start_row;  //only way for thread to know its position inside universe
+    short *ghost_row;       //only need one. if start_row = 0 then it's the main thread
+                            // main thread ghost row is above, child thread ghost rows are below
 };
 
 /***************************************************************************/
@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
 // This just show you how to call the RNG.    
     // printf("Rank %d of %d has been started and a first Random Value of %lf\n", 
     //    mpi_myrank, mpi_commsize, GenVal(mpi_myrank));
-    MPI_Barrier( MPI_COMM_WORLD );
+    MPI_Barrier(MPI_COMM_WORLD);
     
 // Insert your code
     if (NUM_THREADS) {
@@ -100,6 +100,16 @@ int main(int argc, char *argv[])
                 universe[i][j] = (GenVal(mpi_myrank) > .5) ? 1 : 0;
             }
         }
+        //short *ghost_top = NULL, *ghost_bot = NULL;
+        //send ghost rows
+        if (mpi_myrank != 0){
+            //ghost_top = malloc(GRID_SIZE*sizeof(short));
+            MPI_Isend(universe[0], GRID_SIZE, MPI_SHORT, mpi_myrank-1, mpi_myrank-1, MPI_COMM_WORLD, &request);
+        }
+        if (mpi_myrank != mpi_commsize-1){
+            //ghost_bot = malloc(GRID_SIZE*sizeof(short));
+            MPI_Isend(universe[ROWS_PER_RANK-1], GRID_SIZE, MPI_SHORT, mpi_myrank+1, mpi_myrank+1, MPI_COMM_WORLD, &request2);
+        }
         // Create thread array
         pthread_t tid[NUM_THREADS];
 
@@ -107,25 +117,13 @@ int main(int argc, char *argv[])
         for (int i = 1; i < NUM_THREADS; ++i) {
             struct thread_args *info = (struct thread_args*) calloc(1, sizeof(struct thread_args));//possible memory issue from multiple of same variable?
             info->universe = universe;
-            info->start_row = i*ROWS_PER_THREAD;
-            info->top_ghost_row = NULL;
+            *(short *)&info->start_row = i*ROWS_PER_THREAD;
+            info->ghost_row = NULL;
             if (i == NUM_THREADS-1 && mpi_myrank != mpi_commsize-1){
-                // TODO: Figure out ghost rows
-                MPI_Isend(universe, GRID_SIZE, MPI_SHORT,mpi_myrank-1, mpi_myrank-1, MPI_COMM_WORLD, &request);
-                MPI_Irecv(top_ghost_row, GRID_SIZE, MPI_SHORT,mpi_myrank, mpi_myrank+1, MPI_COMM_WORLD, &request2);
-                MPI_Wait(&request2, status2);
+                MPI_Irecv(info->ghost_row, GRID_SIZE, MPI_SHORT,mpi_myrank+1, mpi_myrank, MPI_COMM_WORLD, &request);
             }
             else 
-                info->bot_ghost_row = NULL;
-            if(i == 1 && mpi_myrank != 0){
-                MPI_Irecv(bot_ghost_row, GRID_SIZE, MPI_SHORT,mpi_myrank, mpi_myrank-1, MPI_COMM_WORLD, &request);
-                MPI_Isend(universe, GRID_SIZE, MPI_SHORT,mpi_myrank+1, mpi_myrank+1, MPI_COMM_WORLD, &request2);
-                MPI_Wait(&request, status);
-
-            }
-            else{
-                info->top_ghost_row = NULL
-            }
+                info->ghost_row = NULL;
             int rc = pthread_create(&tid[i],NULL,game_of_life,(void*)info);
 
             if (rc != 0) {
@@ -136,16 +134,13 @@ int main(int argc, char *argv[])
 
         struct thread_args *info = (struct thread_args*) calloc(1, sizeof(struct thread_args));
         info->universe = universe;
-        info->start_row = 0;
+        *(short *)&info->start_row = 0;
         if (mpi_myrank != 0){
-            // TODO: Figure out ghost rows
-            //What to do here and why
-            MPI_Irecv(&top_ghost_row, ROWS_PER_THREAD, MPI_INT,mpi_myrank-1, mpi_myrank, MPI_COMM_WORLD, &request2);
-            MPI_Wait(&request2, status2);
+            MPI_Irecv(info->ghost_row, GRID_SIZE, MPI_INT, mpi_myrank-1, mpi_myrank, MPI_COMM_WORLD, &request2);
         }
         else
-            info->top_ghost_row = NULL;
-        info->bot_ghost_row = NULL;
+            info->ghost_row = NULL;
+        
         game_of_life((void*)info);
 
 
