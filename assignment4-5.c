@@ -38,6 +38,7 @@ int GRID_SIZE = 16384;
 
 struct thread_args{
     short (*universe)[];
+    short (*new_universe)[];
     const short start_row;  //only way for thread to know its position inside universe
     short *ghost_row;       //only need one. if start_row = 0 then it's the main thread
                             // main thread ghost row is above, child thread ghost rows are below
@@ -49,7 +50,6 @@ struct thread_args{
 
 // You define these
 void* game_of_life(void *arg);
-void tick();
 
 /***************************************************************************/
 /* Function: Main **********************************************************/
@@ -79,7 +79,8 @@ int main(int argc, char *argv[])
     num_ghost_rows = NUM_RANKS - 1;
     
     // This rank's rows of the grid
-    short (*universe)[GRID_SIZE] = malloc(ROWS_PER_RANK*GRID_SIZE*sizeof(short)); 
+    short (*universe)[GRID_SIZE] = malloc(ROWS_PER_RANK*GRID_SIZE*sizeof(short));
+    short (*new_universe)[GRID_SIZE] = malloc(ROWS_PER_RANK*GRID_SIZE*sizeof(short));
 
 // Init 16,384 RNG streams - each rank has an independent stream
     InitDefault();
@@ -115,8 +116,10 @@ int main(int argc, char *argv[])
 
         // Create each thread and call thread function game_of_life
         for (int i = 1; i < NUM_THREADS; ++i) {
+            //Create struct to pass arguments to threads
             struct thread_args *info = (struct thread_args*) calloc(1, sizeof(struct thread_args));//possible memory issue from multiple of same variable?
             info->universe = universe;
+            info->new_universe = new_universe;
             *(short *)&info->start_row = i*ROWS_PER_THREAD;
             info->ghost_row = NULL;
             if (i == NUM_THREADS-1 && mpi_myrank != mpi_commsize-1){
@@ -124,6 +127,7 @@ int main(int argc, char *argv[])
             }
             else 
                 info->ghost_row = NULL;
+            
             int rc = pthread_create(&tid[i],NULL,game_of_life,(void*)info);
 
             if (rc != 0) {
@@ -132,8 +136,10 @@ int main(int argc, char *argv[])
             }
         }
 
+        //Main thread runs the game too
         struct thread_args *info = (struct thread_args*) calloc(1, sizeof(struct thread_args));
         info->universe = universe;
+        info->new_universe = new_universe;
         *(short *)&info->start_row = 0;
         if (mpi_myrank != 0){
             MPI_Irecv(info->ghost_row, GRID_SIZE, MPI_INT, mpi_myrank-1, mpi_myrank, MPI_COMM_WORLD, &request2);
@@ -142,20 +148,24 @@ int main(int argc, char *argv[])
             info->ghost_row = NULL;
         
         game_of_life((void*)info);
+        
+
 
 
         // Join child threads with main thread
-        for (int i = 1; i < NUM_THREADS; ++i) {
-            void **thread_info;
-            pthread_join(tid[i],thread_info);
+        for (int i = 1; i < NUM_THREADS; ++i) { // ============================================
+            void **thread_info;                 // IDK how pthreads work do we need this part?
+            pthread_join(tid[i],thread_info);   // ============================================
             free(thread_info);
-        }
-
+        }// info->universe or info->new_universe should now contain the finished grid
+        
     } else {
         // Corner case without pthreads
     }
 
 // END -Perform a barrier and then leave MPI
+    free(universe);
+    free(new_universe);
     MPI_Barrier( MPI_COMM_WORLD );
     MPI_Finalize();
     return 0;
@@ -164,11 +174,28 @@ int main(int argc, char *argv[])
 /***************************************************************************/
 /* Other Functions - You write as part of the assignment********************/
 /***************************************************************************/
-void* game_of_life(void *arg) {
+
+
+/* Run the game of life by looping through the grid and modifying args->new_universe
+ *  @param arg - void pointer pointing to a struct thread_args
+ *      @param universe - the current grid
+ *      @param new_universe - the not yet constructed next iteration of the universe
+ *      @param start_row - the first row this thread has been assigned to compute
+ *      @param ghost_row - NULL unless start row is 0 or ROWS_PER_THREAD*(NUM_THREADS-1)
+            otherwise is an array containing the row required by that thread
+            UPDATE THIS FOR EACH ITERATION
+ *  @return - can be left void because the main thread's struct will still contain a pointer 
+        to the finished grid
+ */
+void game_of_life(void *arg) {
     struct thread_args args = *(struct thread_args*)arg;
     
+    //Stuff
+    
+    //Clean up memory
+    if(args.ghost_row)
+        free(args.ghost_row);
+    if (args.start_row != 0)
+        free(args);
 }
 
-void tick(){
-
-}
