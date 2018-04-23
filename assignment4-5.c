@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
             info->ghost_row = NULL;
         
         game_of_life((void*)info);
-        
+
 
 
 
@@ -158,7 +158,7 @@ int main(int argc, char *argv[])
             pthread_join(tid[i],thread_info);   // ============================================
             free(thread_info);
         }// info->universe or info->new_universe should now contain the finished grid
-        
+
     } else {
         // Corner case without pthreads
     }
@@ -181,7 +181,7 @@ int main(int argc, char *argv[])
  *      @param universe - the current grid
  *      @param new_universe - the not yet constructed next iteration of the universe
  *      @param start_row - the first row this thread has been assigned to compute
- *      @param ghost_row - NULL unless start row is 0 or ROWS_PER_THREAD*(NUM_THREADS-1)
+ *      @param ghost_row - NULL unless start_row is 0 or ROWS_PER_THREAD*(NUM_THREADS-1)
             otherwise is an array containing the row required by that thread
             UPDATE THIS FOR EACH ITERATION
  *  @return - can be left void because the main thread's struct will still contain a pointer 
