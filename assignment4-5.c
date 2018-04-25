@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
             struct thread_args *info = (struct thread_args*) calloc(1, sizeof(struct thread_args));//possible memory issue from multiple of same variable?
             info->universe = universe;
             info->new_universe = new_universe;
-            *(short *)&info->start_row = ROWS_PER_RANK*mpi_myrank + i*ROWS_PER_THREAD;
+            *(short *)&info->start_row = i*ROWS_PER_THREAD;
             info->ghost_row = NULL;
             
             int rc = pthread_create(&tid[i],NULL,game_of_life,(void*)info);
@@ -211,8 +211,7 @@ void* game_of_life(void *arg) {
 
     for (int i = 0; i < 1; ++i) {
         
-        
-        if (args.start_row == ROWS_PER_RANK*mpi_myrank) {
+        if (args.start_row == 0) {
             printf("Rank %d, PID %lu\n", mpi_myrank,pthread_self());
             MPI_Request request,request2,request3,request4;
             MPI_Status status,status2;
@@ -236,6 +235,8 @@ void* game_of_life(void *arg) {
                 MPI_Isend(universe[ROWS_PER_RANK-1],GRID_SIZE,MPI_SHORT,mpi_myrank+1,bot,MPI_COMM_WORLD,&request2);
                 
             }
+
+            printf("sent\n");
 
             // MPI_Barrier(MPI_COMM_WORLD);
 
@@ -262,6 +263,8 @@ void* game_of_life(void *arg) {
 
             }
 
+            printf("received\n");
+
 
 
         } 
@@ -270,7 +273,7 @@ void* game_of_life(void *arg) {
         // printf("PID %lu waiting here in rank %d\n",pthread_self(),mpi_myrank);
         MPI_Barrier(MPI_COMM_WORLD);
         pthread_barrier_wait(&pt_barrier);
-        // printf("PID %lu done waiting\n", pthread_self());
+        printf("PID %lu done waiting\n", pthread_self());
 
         // if (rc == 0) {
         //     // printf("Thread passed barrier: return value was 0\n");
@@ -290,8 +293,8 @@ void* game_of_life(void *arg) {
         // // Apply rules for this generation using previous generation
         pthread_mutex_lock(&mutex);
         thread_cnt++;
-        // printf("From Rank %d: thread range: %d - %d\n",mpi_myrank,(thread_cnt)*ROWS_PER_THREAD, (thread_cnt+1)*ROWS_PER_THREAD-1);
-        // printf("ROWS_PER_RANK: %d\n", ROWS_PER_RANK);
+        printf("From Rank %d: thread range: %d - %d\n",mpi_myrank,(thread_cnt)*ROWS_PER_THREAD, (thread_cnt+1)*ROWS_PER_THREAD-1);
+        printf("ROWS_PER_RANK: %d\n", ROWS_PER_RANK);
         for (int j = (thread_cnt)*ROWS_PER_THREAD; j < (thread_cnt+1)*ROWS_PER_THREAD-1; ++j) {
             // printf("%d\n",j);
             for (int k = 0; k < GRID_SIZE; ++k) {
