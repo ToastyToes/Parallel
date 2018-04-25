@@ -126,20 +126,20 @@ int main(int argc, char *argv[])
         pthread_t tid[NUM_THREADS];
 
         // Create each thread and call thread function game_of_life
-        for (int i = 1; i < NUM_THREADS; ++i) {
+        for (int i = 0; i < NUM_THREADS; ++i) {
             //Create struct to pass arguments to threads
             struct thread_args *info = (struct thread_args*) calloc(1, sizeof(struct thread_args));//possible memory issue from multiple of same variable?
             info->universe = universe;
             info->new_universe = new_universe;
-            *(short *)&info->start_row = i*ROWS_PER_THREAD;
+            *(short *)&info->start_row = ROWS_PER_RANK*mpi_myrank + i*ROWS_PER_THREAD;
             info->ghost_row = NULL;
-            if (i == NUM_THREADS-1 && mpi_myrank != mpi_commsize-1){
-                short *ghost_row = (short *)calloc(GRID_SIZE,sizeof(short));
-                MPI_Irecv(ghost_row, GRID_SIZE, MPI_SHORT,mpi_myrank+1, mpi_myrank, MPI_COMM_WORLD, &request);
-                info->ghost_row = ghost_row;
-            }
-            else 
-                info->ghost_row = NULL;
+            // if (i == NUM_THREADS-1 && mpi_myrank != mpi_commsize-1){
+            //     short *ghost_row = (short *)calloc(GRID_SIZE,sizeof(short));
+            //     MPI_Irecv(ghost_row, GRID_SIZE, MPI_SHORT,mpi_myrank+1, mpi_myrank, MPI_COMM_WORLD, &request);
+            //     info->ghost_row = ghost_row;
+            // }
+            // else 
+            //     info->ghost_row = NULL;
             
             int rc = pthread_create(&tid[i],NULL,game_of_life,(void*)info);
 
@@ -150,10 +150,10 @@ int main(int argc, char *argv[])
         }
 
         //Main thread runs the game too
-        struct thread_args *info = (struct thread_args*) calloc(1, sizeof(struct thread_args));
-        info->universe = universe;
-        info->new_universe = new_universe;
-        *(short *)&info->start_row = 0;
+        // struct thread_args *info = (struct thread_args*) calloc(1, sizeof(struct thread_args));
+        // info->universe = universe;
+        // info->new_universe = new_universe;
+        // *(short *)&info->start_row = ROWS_PER_RANK*mpi_myrank;
         // if (mpi_myrank != 0){
         //     short *ghost_row = (short *)calloc(GRID_SIZE,sizeof(short));
         //     MPI_Irecv(ghost_row, GRID_SIZE, MPI_INT, mpi_myrank-1, mpi_myrank, MPI_COMM_WORLD, &request2);
@@ -162,13 +162,13 @@ int main(int argc, char *argv[])
         // else
         //     info->ghost_row = NULL;
         
-        game_of_life((void*)info);
+        // game_of_life((void*)info);
 
 
 
 
         // Join child threads with main thread
-        for (int i = 1; i < NUM_THREADS; ++i) {
+        for (int i = 0; i < NUM_THREADS; ++i) {
                                               // ============================================
             // void **thread_info;                 // IDK how pthreads work do we need this part?
                 // printf("here\n");
@@ -225,7 +225,7 @@ void* game_of_life(void *arg) {
     short *ghost_row = args.ghost_row;
 
     int top = 123;
-    int bot = 200   ;
+    int bot = 200;
 
     short *ghost_row_top, *ghost_row_bot;
 
@@ -244,82 +244,74 @@ void* game_of_life(void *arg) {
             // printf("%d\n", i);
 
             // Receives bottom of a rank's block
-            printf("PID %lu of rank %d waiting to receive rank %d's bot\n", pthread_self(),mpi_myrank,i);
+            // printf("PID %lu of rank %d waiting to receive rank %d's bot\n", pthread_self(),mpi_myrank,i);
             MPI_Irecv(ghost_row_top,GRID_SIZE,MPI_SHORT,i,bot,MPI_COMM_WORLD,&request);
             MPI_Wait(&request,&status);
 
-            printf("PID %lu of rank %d received rank %d's bot\n", pthread_self(),mpi_myrank,i);
+            // printf("PID %lu of rank %d received rank %d's bot\n", pthread_self(),mpi_myrank,i);
 
             // Either stores it if relevant to this rank or sends it to the correct rank
             if (i==NUM_RANKS-1) {
-                printf("rank 0 stores rank %d's bot\n", i);
+                // printf("rank 0 stores rank %d's bot\n", i);
                 my_top = ghost_row_top;
             } else {
-                printf("PID %lu of rank %d sending rank %d's bot to rank %d's top\n", pthread_self(),mpi_myrank,i,i+1);
+                // printf("PID %lu of rank %d sending rank %d's bot to rank %d's top\n", pthread_self(),mpi_myrank,i,i+1);
                 MPI_Isend(ghost_row_top,GRID_SIZE,MPI_SHORT,i+1,top,MPI_COMM_WORLD,&request3);
             }
 
             // Receives top of a rank's block
-            printf("PID %lu of rank %d waiting to receive rank %d's top\n", pthread_self(),mpi_myrank,i);
+            // printf("PID %lu of rank %d waiting to receive rank %d's top\n", pthread_self(),mpi_myrank,i);
             MPI_Irecv(ghost_row_bot,GRID_SIZE,MPI_SHORT,i,top,MPI_COMM_WORLD,&request2);
             MPI_Wait(&request2,&status2);
 
-            printf("PID %lu of rank %d received rank %d's top\n", pthread_self(),mpi_myrank,i);
+            // printf("PID %lu of rank %d received rank %d's top\n", pthread_self(),mpi_myrank,i);
 
             // Either stores it if relevant to this rank or sends it to the correct rank
             if (i==1) {
-                printf("rank 0 stores rank %d's top\n", i);
+                // printf("rank 0 stores rank %d's top\n", i);
                 my_bot = ghost_row_bot;
             } else {
-                printf("PID %lu of rank %d sending rank %d's top to rank %d's bot\n", pthread_self(),mpi_myrank,i,i-1);
+                // printf("PID %lu of rank %d sending rank %d's top to rank %d's bot\n", pthread_self(),mpi_myrank,i,i-1);
                 MPI_Isend(ghost_row_bot,GRID_SIZE,MPI_SHORT,i-1,bot,MPI_COMM_WORLD,&request4);
             }
 
             
         }
 
-        printf("PID %lu of rank %d sending its top to rank %d\n", pthread_self(),mpi_myrank,NUM_RANKS-1);
+        // printf("PID %lu of rank %d sending its top to rank %d\n", pthread_self(),mpi_myrank,NUM_RANKS-1);
         MPI_Isend(my_top,GRID_SIZE,MPI_SHORT,NUM_RANKS-1,bot,MPI_COMM_WORLD,&request5);
-        printf("PID %lu of rank %d sending its bottom to rank %d\n", pthread_self(),mpi_myrank,1);
+        // printf("PID %lu of rank %d sending its bottom to rank %d\n", pthread_self(),mpi_myrank,1);
         MPI_Isend(my_bot,GRID_SIZE,MPI_SHORT,1,top,MPI_COMM_WORLD,&request6);
-
+        
     } 
     // MPI_Barrier(MPI_COMM_WORLD);
     //TODO: Change this so that only one thread is in this if statement
-    if (args.start_row != 0 && mpi_myrank != 0) {
+    // printf("rank %d, %d\n", mpi_myrank,args.start_row);
+    // printf("%d\n", ROWS_PER_RANK*mpi_myrank);
+    if (args.start_row == ROWS_PER_RANK*mpi_myrank && mpi_myrank != 0) {
+        
         MPI_Request request,request2,request3,request4;
         MPI_Status status,status2;
-        // printf("PID sending %lu from rank %d\n", pthread_self(),mpi_myrank);
-        // short buffer[GRID_SIZE];
 
         // Sends top and bottom to MPI Rank 0
-        printf("PID %lu of rank %d sending its top to rank 0\n", pthread_self(),mpi_myrank);
+        // printf("PID %lu of rank %d sending its top to rank 0\n", pthread_self(),mpi_myrank);
         MPI_Isend(universe[0],GRID_SIZE,MPI_SHORT,0,top,MPI_COMM_WORLD,&request);
-        printf("PID %lu of rank %d sending its bot to rank 0\n", pthread_self(),mpi_myrank);
+        // printf("PID %lu of rank %d sending its bot to rank 0\n", pthread_self(),mpi_myrank);
         MPI_Isend(universe[ROWS_PER_RANK-1],GRID_SIZE,MPI_SHORT,0,bot,MPI_COMM_WORLD,&request2);
 
         short *ghost_row_top = (short*)malloc(sizeof(short)*GRID_SIZE);
         short *ghost_row_bot = (short*)malloc(sizeof(short)*GRID_SIZE);
 
-        printf("PID %lu of rank %d waiting to receive bot from rank 0\n", pthread_self(),mpi_myrank);
+        // printf("PID %lu of rank %d waiting to receive bot from rank 0\n", pthread_self(),mpi_myrank);
         MPI_Irecv(ghost_row_top,GRID_SIZE,MPI_SHORT,0,bot,MPI_COMM_WORLD,&request3);
         MPI_Wait(&request3,&status);
-        printf("PID %lu of rank %d received bot from rank 0\n", pthread_self(),mpi_myrank);
+        // printf("PID %lu of rank %d received bot from rank 0\n", pthread_self(),mpi_myrank);
 
-        printf("PID %lu of rank %d waiting to receive top from rank 0\n", pthread_self(),mpi_myrank);
+        // printf("PID %lu of rank %d waiting to receive top from rank 0\n", pthread_self(),mpi_myrank);
         MPI_Irecv(ghost_row_bot,GRID_SIZE,MPI_SHORT,0,top,MPI_COMM_WORLD,&request4);
         MPI_Wait(&request4,&status2);
-        // if (mpi_myrank == NUM_RANKS-1) {
-        //     printf("rank %d waiting for rank 0\n");
-        //     MPI_Irecv(ghost_row_bot,GRID_SIZE,MPI_SHORT,0,top,MPI_COMM_WORLD,&request4);
-        //     MPI_Wait(&request4,&status2);
-        // } else {
-        //     printf("rank %d waiting for rank %d\n",mpi_myrank+1);
-        //     MPI_Irecv(ghost_row_bot,GRID_SIZE,MPI_SHORT,mpi_myrank+1,top,MPI_COMM_WORLD,&request4);
-        //     MPI_Wait(&request4,&status2);
-        // }
-        printf("PID %lu of rank %d received top from rank 0\n", pthread_self(),mpi_myrank);
-        
+
+        // printf("PID %lu of rank %d received top from rank 0\n", pthread_self(),mpi_myrank);
 
     }
     // MPI_Barrier(MPI_COMM_WORLD);
