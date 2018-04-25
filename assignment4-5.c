@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
             struct thread_args *info = (struct thread_args*) calloc(1, sizeof(struct thread_args));//possible memory issue from multiple of same variable?
             info->universe = universe;
             info->new_universe = new_universe;
-            *(short *)&info->start_row = ROWS_PER_RANK*mpi_myrank + i*ROWS_PER_THREAD;
+            *(short *)&info->start_row = i*ROWS_PER_THREAD;
             info->ghost_row = NULL;
             
             int rc = pthread_create(&tid[i],NULL,game_of_life,(void*)info);
@@ -211,8 +211,8 @@ void* game_of_life(void *arg) {
 
     for (int i = 0; i < 1; ++i) {
         
-        
-        if (args.start_row == ROWS_PER_RANK*mpi_myrank) {
+
+        if (args.start_row == 0) {
             printf("Rank %d, PID %lu\n", mpi_myrank,pthread_self());
             MPI_Request request,request2,request3,request4;
             MPI_Status status,status2;
@@ -292,7 +292,7 @@ void* game_of_life(void *arg) {
         thread_cnt++;
         // printf("From Rank %d: thread range: %d - %d\n",mpi_myrank,(thread_cnt)*ROWS_PER_THREAD, (thread_cnt+1)*ROWS_PER_THREAD-1);
         // printf("ROWS_PER_RANK: %d\n", ROWS_PER_RANK);
-        for (int j = (thread_cnt)*ROWS_PER_THREAD; j < (thread_cnt+1)*ROWS_PER_THREAD-1; ++j) {
+        for (int j = args.start_row; j < args.start_row + ROWS_PER_THREAD-1; ++j) {
             // printf("%d\n",j);
             for (int k = 0; k < GRID_SIZE; ++k) {
                 float rng_val = GenVal(j);
@@ -374,13 +374,13 @@ int num_alive_neighbors(short** universe, int i, int j, short *top, short *bot) 
 
     // Account for ghost rows if needed
     if (i == 0) {
-        // num_alive = num_alive + (int)top[j+1] + (int)top[j] + (int)top[j-1];
+        num_alive = num_alive + (int)top[j+1] + (int)top[j] + (int)top[j-1];
     } else {
         num_alive = num_alive + universe[i-1][j] + universe[i-1][j+1] + universe[i-1][j-1];
     }
 
-    if (i==NUM_RANKS-1) {
-        // num_alive = num_alive + bot[j+1] + bot[j] + bot[j-1];
+    if (i==ROWS_PER_THREAD-1) {
+        num_alive = num_alive + bot[j+1] + bot[j] + bot[j-1];
     } else {
         num_alive = num_alive + universe[i+1][j] + universe[i+1][j+1] + universe[i+1][j-1];
     }
