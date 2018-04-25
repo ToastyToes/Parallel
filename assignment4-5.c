@@ -133,7 +133,6 @@ int main(int argc, char *argv[])
             info->new_universe = new_universe;
             *(short *)&info->start_row = i*ROWS_PER_THREAD;
             info->ghost_row = NULL;
-            // printf("%d\n", i);
             if (i == NUM_THREADS-1 && mpi_myrank != mpi_commsize-1){
                 short *ghost_row = (short *)calloc(GRID_SIZE,sizeof(short));
                 MPI_Irecv(ghost_row, GRID_SIZE, MPI_SHORT,mpi_myrank+1, mpi_myrank, MPI_COMM_WORLD, &request);
@@ -214,7 +213,13 @@ int main(int argc, char *argv[])
  */
 void* game_of_life(void *arg) {
     struct thread_args args = *(struct thread_args*)arg;
-    short (*universe)[GRID_SIZE] = args.universe;
+    short (*univ)[GRID_SIZE] = args.universe;
+    short *universe[ROWS_PER_RANK];
+    for (int i = 0; i < ROWS_PER_RANK; ++i) {
+        universe[i] = univ[i];
+    }
+        // printf("here\n");
+
     short *ghost_row = args.ghost_row;
 
     int top = 0;
@@ -236,10 +241,10 @@ void* game_of_life(void *arg) {
             MPI_Status status;
 
             short *ghost_row_top = (short*)malloc(sizeof(short)*GRID_SIZE);
-            short *ghost_row_bot = (short*)malloc(sizeof(short)*GRID_SIZE);
-
-            // MPI_Irecv(ghost_row_top,GRID_SIZE,MPI_SHORT,i,top,MPI_COMM_WORLD,&request2);
-            // MPI_Wait(&request2,&status);
+            // short *ghost_row_bot = (short*)malloc(sizeof(short)*GRID_SIZE);
+            MPI_Irecv(ghost_row_top,GRID_SIZE,MPI_SHORT,i,top,MPI_COMM_WORLD,&request2);
+            printf("PID waiting %lu in rank %d at index %d\n", pthread_self(),mpi_myrank,i);
+            MPI_Wait(&request2,&status);
 
             // MPI_Irecv(ghost_row_bot,GRID_SIZE,MPI_SHORT,i,bot,MPI_COMM_WORLD,&request3);
             // MPI_Wait(&request3,&status);
@@ -251,13 +256,16 @@ void* game_of_life(void *arg) {
     // MPI_Barrier(MPI_COMM_WORLD);
     if (args.start_row != 0 && mpi_myrank != 0) {
         MPI_Request request;
-        printf("PID sending %lu\n", pthread_self());
-        // short buffer[GRID_SIZE];
+        printf("PID sending %lu from rank %d\n", pthread_self(),mpi_myrank);
+        short buffer[GRID_SIZE];
         // for (int i = 0; i < GRID_SIZE; ++i) {
         //     // buffer[i] = universe[0][i];
         //     printf("%d", *universe[i]);
         // }
+        MPI_Barrier(MPI_COMM_WORLD);
+        // MPI_Isend(universe[0],GRID_SIZE,MPI_SHORT,0,0,MPI_COMM_WORLD,&request);
         MPI_Isend(universe[0],GRID_SIZE,MPI_SHORT,0,top,MPI_COMM_WORLD,&request);
+
         // MPI_Isend(universe[ROWS_PER_RANK-1],GRID_SIZE,MPI_SHORT,0,bot,MPI_COMM_WORLD,&request);
 
     }
