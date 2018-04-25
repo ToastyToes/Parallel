@@ -40,6 +40,7 @@ int NUM_TICKS = 128;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_barrier_t pt_barrier;
 int thread_cnt;
+short *my_top, *my_bot;
 
 struct thread_args{
     short (*universe)[];
@@ -206,7 +207,7 @@ void* game_of_life(void *arg) {
     int top = 123;
     int bot = 200;
 
-    short *ghost_row_top, *ghost_row_bot, *my_top, *my_bot;
+    short *ghost_row_top, *ghost_row_bot;
 
     for (int i = 0; i < 1; ++i) {
         
@@ -266,10 +267,10 @@ void* game_of_life(void *arg) {
         } 
         
         // printf("%d\n", NUM_THREADS);
-        printf("PID %lu waiting here in rank %d\n",pthread_self(),mpi_myrank);
+        // printf("PID %lu waiting here in rank %d\n",pthread_self(),mpi_myrank);
         MPI_Barrier(MPI_COMM_WORLD);
-        int rc = pthread_barrier_wait(&pt_barrier);
-        printf("PID %lu done waiting\n", pthread_self());
+        pthread_barrier_wait(&pt_barrier);
+        // printf("PID %lu done waiting\n", pthread_self());
 
         // if (rc == 0) {
         //     // printf("Thread passed barrier: return value was 0\n");
@@ -279,18 +280,18 @@ void* game_of_life(void *arg) {
         //     fprintf(stderr, "pthread_barrier_wait\n");
         //     exit(1);
         // }
-        pthread_mutex_lock(&mutex);
+        // pthread_mutex_lock(&mutex);
         if (my_bot == NULL || my_top == NULL) {
             fprintf(stderr, "ghost row is NULL for rank %d for PID %lu, %d %d\n",mpi_myrank,pthread_self(),my_bot==NULL,my_top==NULL);
             exit(1);
         }
-        pthread_mutex_unlock(&mutex);
+        // pthread_mutex_unlock(&mutex);
 
         // // Apply rules for this generation using previous generation
         pthread_mutex_lock(&mutex);
         thread_cnt++;
-        printf("From Rank %d: thread range: %d - %d\n",mpi_myrank,(thread_cnt)*ROWS_PER_THREAD, (thread_cnt+1)*ROWS_PER_THREAD-1);
-        printf("ROWS_PER_RANK: %d\n", ROWS_PER_RANK);
+        // printf("From Rank %d: thread range: %d - %d\n",mpi_myrank,(thread_cnt)*ROWS_PER_THREAD, (thread_cnt+1)*ROWS_PER_THREAD-1);
+        // printf("ROWS_PER_RANK: %d\n", ROWS_PER_RANK);
         for (int j = (thread_cnt)*ROWS_PER_THREAD; j < (thread_cnt+1)*ROWS_PER_THREAD-1; ++j) {
             // printf("%d\n",j);
             for (int k = 0; k < GRID_SIZE; ++k) {
@@ -298,21 +299,21 @@ void* game_of_life(void *arg) {
                 if (rng_val > THRESHOLD) {
                     // int num_alive = 0;
                     int num_alive = num_alive_neighbors(universe,j,k,my_top,my_bot);
-                    // if (universe[j][k] == ALIVE) {
-                    //     if (num_alive < 2) {
-                    //         new_universe[j][k] = DEAD;
-                    //     } else if (num_alive > 1 && num_alive < 4) {
-                    //         new_universe[j][k] = ALIVE;
-                    //     } else if (num_alive > 3) {
-                    //         new_universe[j][k] = DEAD;
-                    //     } 
-                    // } else {
-                    //     if (num_alive == 3) {
-                    //         new_universe[j][k] = ALIVE;
-                    //     } else {
-                    //         new_universe[j][k] = DEAD;
-                    //     }
-                    // }
+                    if (universe[j][k] == ALIVE) {
+                        if (num_alive < 2) {
+                            new_universe[j][k] = DEAD;
+                        } else if (num_alive > 1 && num_alive < 4) {
+                            new_universe[j][k] = ALIVE;
+                        } else if (num_alive > 3) {
+                            new_universe[j][k] = DEAD;
+                        } 
+                    } else {
+                        if (num_alive == 3) {
+                            new_universe[j][k] = ALIVE;
+                        } else {
+                            new_universe[j][k] = DEAD;
+                        }
+                    }
                 } else {
                     new_universe[j][k] = (GenVal(j) > .5) ? 1 : 0;
                 }
