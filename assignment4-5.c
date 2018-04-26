@@ -15,7 +15,7 @@
 #include <pthread.h>
 #include <unistd.h>
 
-#include "clcg4.c"
+
 
 
 /***************************************************************************/
@@ -24,6 +24,14 @@
 
 #define ALIVE 1
 #define DEAD  0
+
+#ifdef BGQ
+#include <hwi/include/bqc/A2_inlines.h>
+#include "clcg4.h"
+#else
+#define GetTimeBase MPI_Wtime
+#include "clcg4.c"
+#endif
 
 /***************************************************************************/
 /* Global Vars *************************************************************/
@@ -35,7 +43,7 @@ int mpi_commsize;
 int ROWS_PER_RANK, ROWS_PER_THREAD;
 int NUM_RANKS, num_rows, num_ghost_rows;
 int NUM_THREADS, THRESHOLD;
-int GRID_SIZE = 1024;
+int GRID_SIZE = 16834;
 int NUM_TICKS = 128;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_barrier_t pt_barrier;
@@ -73,7 +81,10 @@ int main(int argc, char *argv[])
     MPI_Request request, request2;
     MPI_Status status, status2;
     double start_time, finish_time;
-
+    if (mpi_myrank == 0) {
+        start_time = GetTimeBase();
+    }
+    
     thread_cnt = -1;
 
     
@@ -155,7 +166,7 @@ int main(int argc, char *argv[])
 
         }// info->universe or info->new_universe should now contain the finished grid
 
-        printf("Rank %d finished!\n",mpi_myrank);
+        // printf("Rank %d finished!\n",mpi_myrank);
 
     } else {
         // Corner case without pthreads
@@ -167,6 +178,12 @@ int main(int argc, char *argv[])
     free(new_universe);
 
     MPI_Barrier( MPI_COMM_WORLD );
+    if (mpi_myrank == 0) {
+        finish_time = GetTimeBase();
+        printf("%f\n", finish_time - start_time);
+    }
+    
+    
     MPI_Finalize();
 
     return 0;
@@ -209,10 +226,11 @@ void* game_of_life(void *arg) {
 
     short *ghost_row_top, *ghost_row_bot;
 
-    for (int i = 0; i < 1; ++i) {
-        
-        if (args.start_row == 0) {
-            printf("Rank %d, PID %lu\n", mpi_myrank,pthread_self());
+    for (int i = 0; i < NUM_TICKS; ++i) {
+        // printf("i: %d\n", i);
+        // printf("%d\n", args.start_row);
+        if (args.start_row == 0 && NUM_RANKS > 1) {
+            // printf("Rank %d, PID %lu\n", mpi_myrank,pthread_self());
             MPI_Request request,request2,request3,request4;
             MPI_Status status,status2;
             
@@ -220,60 +238,66 @@ void* game_of_life(void *arg) {
             my_bot = (short*)malloc(sizeof(short)*GRID_SIZE);
 
             if (mpi_myrank == 0) {
-                // printf("%d, %d\n", universe[0][0],universe[ROWS_PER_RANK-1][0]);
+                // printf("Rank %d is sending its to.p row to rank %d\n", mpi_myrank,NUM_RANKS-1);
                 MPI_Isend(universe[0],GRID_SIZE,MPI_SHORT,NUM_RANKS-1,top,MPI_COMM_WORLD,&request);
             } else {
-                // printf("%d, %d\n", universe[0][0],universe[ROWS_PER_RANK-1][0]);
+                // printf("Rank %d is sending its top row to rank %d\n", mpi_myrank,mpi_myrank-1);
                 MPI_Isend(universe[0],GRID_SIZE,MPI_SHORT,mpi_myrank-1,top,MPI_COMM_WORLD,&request);
             }
 
             if (mpi_myrank == NUM_RANKS-1) {
-                // printf("%d, %d\n", universe[0][0],universe[ROWS_PER_RANK-1][0]);
+                // printf("Rank %d is sending its bottom row to rank %d\n", mpi_myrank,0);
                 MPI_Isend(universe[ROWS_PER_RANK-1],GRID_SIZE,MPI_SHORT,0,bot,MPI_COMM_WORLD,&request2);
             } else {
-                // printf("%d, %d\n", universe[0][0],universe[ROWS_PER_RANK-1][0]);
+                // printf("Rank %d is sending its bottom row to rank %d\n", mpi_myrank,mpi_myrank+1);
                 MPI_Isend(universe[ROWS_PER_RANK-1],GRID_SIZE,MPI_SHORT,mpi_myrank+1,bot,MPI_COMM_WORLD,&request2);
                 
             }
 
-            printf("sent\n");
+            // printf("sent\n");
 
-            // MPI_Barrier(MPI_COMM_WORLD);
+            MPI_Barrier(MPI_COMM_WORLD);
 
             if (mpi_myrank == 0) {
+                // printf("Rank %d is waiting to receive rank %d's bottom row\n", mpi_myrank,NUM_RANKS-1);
                 MPI_Irecv(my_top,GRID_SIZE,MPI_SHORT,NUM_RANKS-1,bot,MPI_COMM_WORLD,&request3);
                 MPI_Wait(&request3,&status);
-                // printf("%d\n",my_top==NULL);
+                // printf("Rank %d received rank %d's bottom row\n", mpi_myrank,NUM_RANKS-1);
             } else {
+                // printf("Rank %d is waiting to receive rank %d's bottom row\n", mpi_myrank,mpi_myrank-1);
                 MPI_Irecv(my_top,GRID_SIZE,MPI_SHORT,mpi_myrank-1,bot,MPI_COMM_WORLD,&request3);
                 MPI_Wait(&request3,&status);
-                // printf("%d\n",my_top==NULL);
+                // printf("Rank %d received rank %d's bottom row\n", mpi_myrank,mpi_myrank-1);
 
             }
 
             if (mpi_myrank == NUM_RANKS-1) {
+                // printf("Rank %d is waiting to receive rank %d's top row\n", mpi_myrank,0);
                 MPI_Irecv(my_bot,GRID_SIZE,MPI_SHORT,0,top,MPI_COMM_WORLD,&request4);
                 MPI_Wait(&request4,&status2);
-                // printf("%d\n",my_top==NULL);
+                // printf("Rank %d received rank %d's top row\n", mpi_myrank,0);
 
             } else {
+                // printf("Rank %d is waiting to receive rank %d's top row\n", mpi_myrank,mpi_myrank+1);
                 MPI_Irecv(my_bot,GRID_SIZE,MPI_SHORT,mpi_myrank+1,top,MPI_COMM_WORLD,&request4);
                 MPI_Wait(&request4,&status2);
-                // printf("%d\n",my_top==NULL);
+                // printf("Rank %d received rank %d's top row\n", mpi_myrank,mpi_myrank+1);
 
             }
 
-            printf("received\n");
+            // printf("received\n");
 
 
 
         } 
+        // printf("passed\n");
         
         // printf("%d\n", NUM_THREADS);
-        // printf("PID %lu waiting here in rank %d\n",pthread_self(),mpi_myrank);
+        // printf("PID %lu waiting he/re in rank %d\n",pthread_self(),mpi_myrank);
         MPI_Barrier(MPI_COMM_WORLD);
         pthread_barrier_wait(&pt_barrier);
-        printf("PID %lu done waiting\n", pthread_self());
+        // printf("PID %lu done waiting\n", pthread_self());
+        // printf("passed\n");
 
         // if (rc == 0) {
         //     // printf("Thread passed barrier: return value was 0\n");
@@ -284,7 +308,8 @@ void* game_of_life(void *arg) {
         //     exit(1);
         // }
         // pthread_mutex_lock(&mutex);
-        if (my_bot == NULL || my_top == NULL) {
+        // printf("%d\n", NUM_RANKS);
+        if ((my_bot == NULL || my_top == NULL) && NUM_RANKS > 1) {
             fprintf(stderr, "ghost row is NULL for rank %d for PID %lu, %d %d\n",mpi_myrank,pthread_self(),my_bot==NULL,my_top==NULL);
             exit(1);
         }
@@ -293,32 +318,34 @@ void* game_of_life(void *arg) {
         // // Apply rules for this generation using previous generation
         pthread_mutex_lock(&mutex);
         thread_cnt++;
-        printf("From Rank %d: thread range: %d - %d\n",mpi_myrank,(thread_cnt)*ROWS_PER_THREAD, (thread_cnt+1)*ROWS_PER_THREAD-1);
-        printf("ROWS_PER_RANK: %d\n", ROWS_PER_RANK);
-        for (int j = (thread_cnt)*ROWS_PER_THREAD; j < (thread_cnt+1)*ROWS_PER_THREAD-1; ++j) {
-            // printf("%d\n",j);
-            for (int k = 0; k < GRID_SIZE; ++k) {
-                float rng_val = GenVal(j);
-                if (rng_val > THRESHOLD) {
-                    // int num_alive = 0;
-                    int num_alive = num_alive_neighbors(universe,j,k,my_top,my_bot);
-                    if (universe[j][k] == ALIVE) {
-                        if (num_alive < 2) {
-                            new_universe[j][k] = DEAD;
-                        } else if (num_alive > 1 && num_alive < 4) {
-                            new_universe[j][k] = ALIVE;
-                        } else if (num_alive > 3) {
-                            new_universe[j][k] = DEAD;
-                        } 
-                    } else {
-                        if (num_alive == 3) {
-                            new_universe[j][k] = ALIVE;
+        // printf("From Rank %d: thread range: %d - %d\n",mpi_myrank,(thread_cnt)*ROWS_PER_THREAD, (thread_cnt+1)*ROWS_PER_THREAD-1);
+        // printf("ROWS_PER_RANK: %d\n", ROWS_PER_RANK);
+        if ((thread_cnt)*ROWS_PER_THREAD < ROWS_PER_RANK) {
+            for (int j = (thread_cnt)*ROWS_PER_THREAD; j < (thread_cnt+1)*ROWS_PER_THREAD; ++j) {
+                // printf("j: %d\n",j);
+                for (int k = 0; k < GRID_SIZE; ++k) {
+                    float rng_val = GenVal(j);
+                    if (rng_val > THRESHOLD) {
+                        // int num_alive = 0;
+                        int num_alive = num_alive_neighbors(universe,j,k,my_top,my_bot);
+                        if (universe[j][k] == ALIVE) {
+                            if (num_alive < 2) {
+                                new_universe[j][k] = DEAD;
+                            } else if (num_alive > 1 && num_alive < 4) {
+                                new_universe[j][k] = ALIVE;
+                            } else if (num_alive > 3) {
+                                new_universe[j][k] = DEAD;
+                            } 
                         } else {
-                            new_universe[j][k] = DEAD;
+                            if (num_alive == 3) {
+                                new_universe[j][k] = ALIVE;
+                            } else {
+                                new_universe[j][k] = DEAD;
+                            }
                         }
+                    } else {
+                        new_universe[j][k] = (GenVal(j) > .5) ? 1 : 0;
                     }
-                } else {
-                    new_universe[j][k] = (GenVal(j) > .5) ? 1 : 0;
                 }
             }
         }
@@ -373,22 +400,90 @@ int num_alive_neighbors(short** universe, int i, int j, short *top, short *bot) 
     //     printf("this is a problem %d %d\n", i,ROWS_PER_RANK);
     //     printf("%d\n", universe[i][j]);
     // }
-    int num_alive = universe[i][j+1] + universe[i][j-1];
+    // printf("Entered\n");
+    int num_alive = 0;
+    
+    if (j != 0) {
+        // printf("Entered-1\n");
+        num_alive = num_alive + universe[i][j-1];
+    }
+
+    if (j != GRID_SIZE-1) {
+        // printf("Entered0\n");
+        num_alive = num_alive + universe[i][j+1];
+    }
+
 
     // Account for ghost rows if needed
-    if (i == 0) {
-        // num_alive = num_alive + (int)top[j+1] + (int)top[j] + (int)top[j-1];
+    if (i == 0 && NUM_RANKS > 1) {
+        if (j != 0) {
+            // printf("Entered1\n");
+            num_alive = num_alive + (int)top[j-1];
+
+        }
+        if (j != GRID_SIZE-1) {
+            // printf("Entered2\n");
+            num_alive = num_alive + (int)top[j+1];
+        }
+        // printf("Entered3\n");
+        num_alive = num_alive + (int)top[j];
     } else {
-        num_alive = num_alive + universe[i-1][j] + universe[i-1][j+1] + universe[i-1][j-1];
+        if (j != 0) {
+            // printf("Entered4\n");
+            if (NUM_RANKS > 1 || (NUM_RANKS == 1 && i != 0)) {
+                num_alive = num_alive + universe[i-1][j-1];
+            }
+        }
+        if (j != GRID_SIZE-1) {
+            // printf("Entered5\n");
+            if (NUM_RANKS > 1 || (NUM_RANKS == 1 && i != 0)) {
+                num_alive = num_alive + universe[i-1][j+1];
+            }
+        }
+        if (NUM_RANKS > 1 || (NUM_RANKS == 1 && i != 0)) {
+            // printf("Entered6\n");
+            num_alive = universe[i-1][j];
+            // printf("%d %d, Exited6\n", i,j);
+        }
+        
     }
 
-    if (i==NUM_RANKS-1) {
-        // num_alive = num_alive + bot[j+1] + bot[j] + bot[j-1];
+    // printf("got here\n");
+
+    if (i==ROWS_PER_THREAD-1 && NUM_RANKS > 1) {
+        if (j != 0) {
+            // printf("%d Entered7\n",j);
+            num_alive = num_alive + bot[j-1];
+
+        }
+        if (j != GRID_SIZE-1) {
+            // printf("Entered8\n");
+            num_alive = num_alive + bot[j+1];
+        }
+        num_alive = num_alive + bot[j];
     } else {
-        num_alive = num_alive + universe[i+1][j] + universe[i+1][j+1] + universe[i+1][j-1];
+        if (j != 0) {
+            // printf("%d==%d? %d Entered9\n",i,ROWS_PER_THREAD,j);
+            if (NUM_RANKS > 1 || (NUM_RANKS == 1 && i < GRID_SIZE-1)) {
+                num_alive = num_alive + universe[i+1][j-1];
+            }
+        } 
+        if (j != GRID_SIZE-1) {
+            // printf("%d %d Entered10\n",i,j);
+            if (NUM_RANKS > 1 || (NUM_RANKS == 1 && i < GRID_SIZE-1)) {
+                num_alive = num_alive + universe[i+1][j+1];
+            }
+        }
+        // printf("Entered11\n");
+        if (NUM_RANKS > 1 || (NUM_RANKS == 1 && i < GRID_SIZE-1)) {
+            num_alive = num_alive + universe[i+1][j];
+        }
     }
 
-    // return num_alive;
-    return 0;
+    // printf("Exited\n");
+
+
+    return num_alive;
+    // return 0;
      
 }
