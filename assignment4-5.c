@@ -155,14 +155,11 @@ int main(int argc, char *argv[])
 
         }// info->universe or info->new_universe should now contain the finished grid
 
-        printf("Rank %d finished!\n",mpi_myrank);
-
-    } else {
-        // Corner case without pthreads
-    }
+        printf("Rank %d finished!\nMain thread outputting results...\n",mpi_myrank);
+    } 
 
 // END -Perform a barrier and then leave MPI
-
+    free(info);
     free(universe);
     free(new_universe);
 
@@ -209,7 +206,7 @@ void* game_of_life(void *arg) {
 
     short *ghost_row_top, *ghost_row_bot;
 
-    for (int i = 0; i < 1; ++i) {
+    for (int i = 0; i < 128; ++i) {
         
         if (args.start_row == 0) {
             printf("Rank %d, PID %lu\n", mpi_myrank,pthread_self());
@@ -241,10 +238,11 @@ void* game_of_life(void *arg) {
             // MPI_Barrier(MPI_COMM_WORLD);
 
             if (mpi_myrank == 0) {
+                printf("Error terror?\n");
                 MPI_Irecv(my_top,GRID_SIZE,MPI_SHORT,NUM_RANKS-1,bot,MPI_COMM_WORLD,&request3);
                 MPI_Wait(&request3,&status);
                 // printf("%d\n",my_top==NULL);
-            } else {
+            } else {printf("Error where?\n");
                 MPI_Irecv(my_top,GRID_SIZE,MPI_SHORT,mpi_myrank-1,bot,MPI_COMM_WORLD,&request3);
                 MPI_Wait(&request3,&status);
                 // printf("%d\n",my_top==NULL);
@@ -252,11 +250,13 @@ void* game_of_life(void *arg) {
             }
 
             if (mpi_myrank == NUM_RANKS-1) {
+                printf("Error now?\n");
                 MPI_Irecv(my_bot,GRID_SIZE,MPI_SHORT,0,top,MPI_COMM_WORLD,&request4);
                 MPI_Wait(&request4,&status2);
                 // printf("%d\n",my_top==NULL);
 
-            } else {
+            } else { 
+                printf("Error here?\n");
                 MPI_Irecv(my_bot,GRID_SIZE,MPI_SHORT,mpi_myrank+1,top,MPI_COMM_WORLD,&request4);
                 MPI_Wait(&request4,&status2);
                 // printf("%d\n",my_top==NULL);
@@ -271,7 +271,7 @@ void* game_of_life(void *arg) {
         
         // printf("%d\n", NUM_THREADS);
         // printf("PID %lu waiting here in rank %d\n",pthread_self(),mpi_myrank);
-        MPI_Barrier(MPI_COMM_WORLD);
+        //MPI_Barrier(MPI_COMM_WORLD);
         pthread_barrier_wait(&pt_barrier);
         printf("PID %lu done waiting\n", pthread_self());
 
@@ -357,7 +357,7 @@ void* game_of_life(void *arg) {
     // for (int i = 0; i < NUM_TICKS; ++i) {
 
     // }
-    
+
     //Clean up memory
     // if(args.ghost_row)
     //     free(args.ghost_row);
