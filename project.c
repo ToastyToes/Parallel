@@ -4,6 +4,10 @@
 #include <string.h>
 #include <time.h>
 #include <pthread.h>
+#include <sys/types.h>
+#include <ctype.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #ifdef BGQ
 #include <hwi/include/bqc/A2_inlines.h>
@@ -86,6 +90,8 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD,&rank);
     MPI_Comm_size(MPI_COMM_WORLD,&size);
 
+    int fd[2];
+
     command = argv[1];
     srand(time(NULL));
 
@@ -93,11 +99,15 @@ int main(int argc, char** argv) {
     	p = argv[3];
     }
 
+    if (!argv[4] && p) {
+    	fprintf(stderr, "Enter the number of threads\n");
+    	return EXIT_FAILURE;
+    }
+
     if (strcmp(command,"min")==0) {
 
-    	
     	if (rank == 0) {
-    		printf("Finding min with %d MPI ranks...\n",size);
+    		printf("Finding min with MPI rank 0...\n",size);
     		start_cycles = GetTimeBase();
     	}
 
@@ -117,7 +127,6 @@ int main(int argc, char** argv) {
 
 	    	int cnt = ELEMENTS_PER_RANK;
 	    	pthread_t tid[atoi(argv[4])];
-
 
 	    	for (int i = 1; i < size; ++i) {
 	    		int subArray[ELEMENTS_PER_RANK];
@@ -218,8 +227,11 @@ int main(int argc, char** argv) {
     if (rank == 0) {
     	printf("The algorithm took %lf seconds\n", time_in_secs);
     }
+
+    if (getpid() == parent_pid) {
+    	MPI_Finalize();
+    }
     
-    MPI_Finalize();
     return 0;
     
 }
