@@ -272,6 +272,10 @@ int main(int argc, char** argv) {
     //===============================================================================
     // Dijkstra
     //===============================================================================
+    int *local_matrix, *local_dist, *local_pred;
+    int local_n;
+    MPI_Comm comm;
+    MPI_Datatype block_t;
     n = ARRAY_SIZE;
     local_n = n/size;
     local_matrix = malloc(n*local_n*sizeof(int));
