@@ -252,31 +252,19 @@ int main(int argc, char** argv) {
         free(array);
         free(myarray);
     }
-    // ===============================================================================
-    //Bucket Sort
-    // ===============================================================================
-    MPI_Barrier(MPI_COMM_WORLD);
-    int *arr = (int*) calloc(ARRAY_SIZE/size, sizeof(int));
-    for (int n = 0; n < ARRAY_SIZE/size; ++n){
-        arr[n] = rand();
-    }
-    start_cycles = MPI_Wtime();
-    bucketSort(arr, ARRAY_SIZE/size, rank, size, NUM_THREADS);
-    end_cycles = MPI_Wtime();
-    if (rank == 0){
-        printf("Bucket Sort took %f seconds\n", end_cycles - start_cycles);
-    }
-
-    MPI_Barrier(MPI_COMM_WORLD);
+    
 
     //===============================================================================
     // Dijkstra
     //===============================================================================
+    
+    MPI_Barrier(MPI_COMM_WORLD);
+    
     int *local_matrix, *local_dist, *local_pred;
     int local_n;
     MPI_Comm comm;
     MPI_Datatype block_t;
-    n = ARRAY_SIZE;
+    int n = ARRAY_SIZE;
     local_n = n/size;
     local_matrix = malloc(n*local_n*sizeof(int));
     local_dist = malloc(n*local_n*sizeof(int));
@@ -306,7 +294,20 @@ int main(int argc, char** argv) {
 
     MPI_Type_free(&block_t);
     
-    MPI_Finalize();
+    // ===============================================================================
+    //Bucket Sort
+    // ===============================================================================
+    MPI_Barrier(MPI_COMM_WORLD);
+    int *arr = (int*) calloc(ARRAY_SIZE/size, sizeof(int));
+    for (int n = 0; n < ARRAY_SIZE/size; ++n){
+        arr[n] = rand();
+    }
+    start_cycles = MPI_Wtime();
+    bucketSort(arr, ARRAY_SIZE/size, rank, size, NUM_THREADS);
+    end_cycles = MPI_Wtime();
+    if (rank == 0){
+        printf("Bucket Sort took %f seconds\n", end_cycles - start_cycles);
+    }
 
     return 0;
     
