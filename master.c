@@ -281,7 +281,7 @@ int main(int argc, char** argv) {
     local_matrix = malloc(n*local_n*sizeof(int));
     local_dist = malloc(n*local_n*sizeof(int));
     local_pred = malloc(n*local_n*sizeof(int));
-    
+    comm = MPI_COMM_WORLD;
     block_t = Build_block(n, local_n);
     
     scatter_matrix(local_matrix, n, local_n, block_t, rank, comm);
