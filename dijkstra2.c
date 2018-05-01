@@ -24,7 +24,7 @@ void scatter_matrix(int local_matrix[], int n, int local_n, MPI_Datatype block_t
 void Dijkstra(int matrix[], int local_dist[], int local_pred[], int n, int local_n, int rank, MPI_Comm comm);
 void init_matrix(int matrix[], int local_dist[], int local_pred[], int known[], int local_n, int rank);
 int find_min(int local_dist[], int local_known[], int local_n, int my_rank, MPI_Comm comm);
-
+/*
 int main(int argc, char* argv[]) {
     int *local_matrix, *local_dist, *local_pred;
     int n, local_n, size, rank;
@@ -69,8 +69,8 @@ int main(int argc, char* argv[]) {
     
     MPI_Finalize();
     return 0;
-}  /* main */
-
+}  
+*/
 MPI_Datatype Build_block(int n, int local_n) {
     MPI_Aint lb, extent;
     MPI_Datatype temp_t;
