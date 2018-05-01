@@ -10,6 +10,8 @@
 #include <unistd.h>
 #include <limits.h>
 
+#include "bucketSort.c"
+
 #ifdef BGQ
 #include <hwi/include/bqc/A2_inlines.h>
 #else
@@ -258,17 +260,29 @@ int main(int argc, char** argv) {
     }
     end_cycles = MPI_Wtime();
     MPI_Barrier(MPI_COMM_WORLD);
-    double time_in_secs = ((double)(end_cycles - start_cycles));
+    //double time_in_secs = ((double)(end_cycles - start_cycles));
     // printf("%f %f\n", start_cycles, end_cycles);
     if (rank == 0) {
-    	printf("The algorithm took %f seconds\n", end_cycles - start_cycles);
+    	printf("findmin took %f seconds\n", end_cycles - start_cycles);
         free(array);
         free(myarray);
     }
+    // ===============================================================================
+    //Bucket Sort
+    // ===============================================================================
 
-    
+    int *arr = (int*) calloc(ARRAY_SIZE/size, sizeof(int));
+    for (int n = 0; n < ARRAY_SIZE/size; ++n){
+        arr[n] = rand();
+    }
+    start_cycles = MPI_Wtime();
+    bucketSort(arr, ARRAY_SIZE/size, rank, size, NUM_THREADS);
+    end_cycles = MPI_Wtime();
+    if (rank == 0){
+        printf("Bucket Sort took %f seconds\n", end_cycles - start_cycles);
+    }
 
-    MPI_Finalize();
+
     return 0;
     
 }

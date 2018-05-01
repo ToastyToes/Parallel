@@ -17,12 +17,15 @@ struct Bucket {
 	int num;
 };
 
+void bucketSort(int array[], int array_size, int myrank, int mysize, int num_threads);
 void* sortBucket(void* args);
 void quickSort(int* bucket, int low, int high);
 int partition(int* bucket, int low, int high);
 
-void bucketSort(int array[], int array_size, int num_threads){
+void bucketSort(int array[], int array_size, int myrank, int mysize, int num_threads){
 	//Init bucket list
+	mpi_rank = myrank;
+	mpi_size = mysize;
 	int num_buckets = (num_threads) ? num_threads : 5;
 	//int bucket_terminator = RAND_MAX+1;
 	struct Bucket *bucket = (struct Bucket*) calloc(num_buckets, sizeof(struct Bucket));
